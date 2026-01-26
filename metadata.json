@@ -1,0 +1,7 @@
+{
+  "name": "TextLens - AI Document Scanner",
+  "description": "A high-performance OCR utility that captures text from your camera and instantly copies it to your clipboard using Gemini 3 Flash.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
