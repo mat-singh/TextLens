@@ -12,7 +12,6 @@ interface BoxRect {
   height: number;
 }
 
-// 1. Memoized Video Component with resilient play logic
 const CameraView = memo(({ stream, error }: { stream: MediaStream | null, error: string | null }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -33,8 +32,6 @@ const CameraView = memo(({ stream, error }: { stream: MediaStream | null, error:
       };
 
       playVideo();
-
-      // Listen for window focus to ensure video resumes playing if browser paused it
       window.addEventListener('focus', playVideo);
       return () => {
         mounted = false;
@@ -63,24 +60,20 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [latestResult, setLatestResult] = useState<ExtractionResult | null>(null);
   
-  // Framing Box State
   const [boxRect, setBoxRect] = useState<BoxRect>({ top: 35, left: 7.5, width: 85, height: 30 });
   const [activeHandle, setActiveHandle] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
 
-  // Use a ref for the stream to handle cleanup without triggering re-renders in callbacks
   const streamRef = useRef<MediaStream | null>(null);
   const dragStartPos = useRef<{ x: number, y: number } | null>(null);
   const initialBox = useRef<BoxRect | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   
-  // Zoom logic
   const [zoom, setZoom] = useState(1);
   const initialPinchDist = useRef<number | null>(null);
   const initialZoom = useRef<number>(1);
 
-  // 2. Optimized Camera Start (No stream dependency to avoid infinite loops)
   const startCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("Camera API not supported.");
@@ -89,8 +82,6 @@ const App: React.FC = () => {
 
     try {
       setError(null);
-      
-      // Stop old tracks first
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
@@ -104,12 +95,9 @@ const App: React.FC = () => {
         }
       });
 
-      // Handle cases where the track might end unexpectedly
       newStream.getVideoTracks().forEach(track => {
         track.onended = () => {
-          // Only restart if the tab is still visible
           if (document.visibilityState === 'visible') {
-            console.log("Track ended unexpectedly, restarting...");
             startCamera();
           }
         };
@@ -118,17 +106,14 @@ const App: React.FC = () => {
       streamRef.current = newStream;
       setStream(newStream);
     } catch (err: any) {
-      console.error("Camera access failed:", err);
       setError("Could not access camera. Check permissions or close other apps using the camera.");
       setAppState(AppState.ERROR);
     }
   }, []);
 
-  // 3. Lifecycle Management for Mobile Resume
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log("App returned to foreground, refreshing camera...");
         startCamera();
       }
     };
@@ -289,22 +274,25 @@ const App: React.FC = () => {
         <CameraView stream={stream} error={error} />
 
         {error && (
-          <div className="absolute inset-0 z-50 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-10 text-center">
-            <i className="lucide-alert-circle w-12 h-12 text-red-500 mb-4"></i>
-            <h2 className="text-xl font-bold mb-2">Camera Error</h2>
-            <p className="text-slate-400 text-sm mb-6">{error}</p>
-            <button onClick={() => startCamera()} className="px-10 py-3 bg-blue-600 rounded-full font-bold">Retry</button>
+          <div className="absolute inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center overflow-y-auto">
+            <div className="bg-red-500/10 p-6 rounded-3xl border border-red-500/20 max-w-sm">
+              <i className="lucide-alert-triangle w-12 h-12 text-red-500 mb-4 mx-auto"></i>
+              <h2 className="text-xl font-bold mb-3 text-red-400">Application Error</h2>
+              <p className="text-slate-300 text-sm leading-relaxed mb-6">{error}</p>
+              <div className="flex flex-col gap-3">
+                <button onClick={() => { setError(null); startCamera(); }} className="w-full py-3 bg-white text-slate-950 rounded-xl font-bold active:scale-95 transition-transform">Try Again</button>
+                <button onClick={() => window.location.reload()} className="w-full py-3 bg-slate-800 text-slate-400 rounded-xl font-medium text-sm">Refresh Page</button>
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Framing Box UI */}
         {!showHistory && !error && (
           <div className="absolute inset-0 z-30 pointer-events-none">
             <div 
               className="absolute bg-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] border border-white/30 transition-shadow duration-75"
               style={{ top: `${boxRect.top}%`, left: `${boxRect.left}%`, width: `${boxRect.width}%`, height: `${boxRect.height}%` }}
             >
-              {/* Handles */}
               {['top-left', 'top-right', 'bottom-left', 'bottom-right'].map(h => (
                 <div 
                   key={h}
@@ -320,7 +308,6 @@ const App: React.FC = () => {
                   <div className={`w-6 h-6 border-blue-500 ${h.includes('top') ? 'border-t-4' : 'border-b-4'} ${h.includes('left') ? 'border-l-4' : 'border-r-4'} rounded-sm`}></div>
                 </div>
               ))}
-              {/* Drag Area */}
               <div 
                 className="absolute inset-8 pointer-events-auto cursor-move bg-white/5 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg"
                 onTouchStart={(e) => handleBoxInteractionStart(e, 'move')}
@@ -332,8 +319,7 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Latest Result Card */}
-        {latestResult && !showHistory && (
+        {latestResult && !showHistory && !error && (
           <div className="absolute bottom-36 left-4 right-4 z-40 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
             <img src={latestResult.previewUrl} className="w-14 h-14 rounded-lg object-cover border border-white/5" />
             <div className="flex-1 min-w-0">
@@ -346,7 +332,6 @@ const App: React.FC = () => {
           </div>
         )}
 
-        {/* Processing Indicator */}
         {appState === AppState.PROCESSING && (
           <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center">
             <div className="w-16 h-16 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-6"></div>
@@ -362,7 +347,7 @@ const App: React.FC = () => {
         <button 
           onClick={captureAndExtract}
           disabled={appState === AppState.PROCESSING || !!error}
-          className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${appState === AppState.PROCESSING ? 'bg-slate-800 scale-90' : 'bg-white hover:scale-110 active:scale-95'}`}
+          className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${appState === AppState.PROCESSING ? 'bg-slate-800 scale-90' : 'bg-white hover:scale-110 active:scale-95 disabled:opacity-50 disabled:grayscale'}`}
         >
           <div className="w-16 h-16 rounded-full border-2 border-slate-950 flex items-center justify-center">
             <i className={`lucide-scan w-8 h-8 ${appState === AppState.PROCESSING ? 'text-slate-600' : 'text-slate-950'}`}></i>
@@ -370,7 +355,6 @@ const App: React.FC = () => {
         </button>
       </footer>
 
-      {/* Menu Drawer */}
       <div className={`fixed inset-0 z-[100] transition-all duration-300 ${isMenuOpen ? 'visible' : 'invisible'}`}>
         <div className={`absolute inset-0 bg-black/80 transition-opacity ${isMenuOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setIsMenuOpen(false)}></div>
         <div className={`absolute top-0 right-0 h-full w-72 bg-slate-900 border-l border-white/5 shadow-2xl transition-transform ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
@@ -387,7 +371,6 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* History Panel */}
       <div className={`fixed inset-0 z-[110] bg-slate-950 transition-transform duration-500 ${showHistory ? 'translate-y-0' : 'translate-y-full'}`}>
         <div className="h-full flex flex-col p-6">
           <header className="flex justify-between items-center mb-6">

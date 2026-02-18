@@ -1,18 +1,16 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Using gemini-3-flash-preview as per standard text task guidelines.
-const MODEL_NAME = 'gemini-3-flash-preview';
-
 export async function extractTextFromImage(base64Image: string): Promise<string> {
-  const apiKey = process.env.API_KEY;
+  // Directly use the required initialization pattern.
+  // Note: process.env.API_KEY must be injected by your build tool (e.g. Zeabur/Vite)
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  if (!apiKey) {
-    throw new Error("API_KEY is missing. Ensure it is set in your environment variables.");
+  // Basic validation to provide a clear error message before the SDK throws
+  if (!process.env.API_KEY) {
+    throw new Error("API_KEY is undefined in the browser. Ensure you have added 'API_KEY' to your Zeabur Environment Variables and redeployed.");
   }
 
-  const ai = new GoogleGenAI({ apiKey });
-  
   // Ensure we only have the base64 data part
   const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
 
@@ -20,7 +18,7 @@ export async function extractTextFromImage(base64Image: string): Promise<string>
 
   try {
     const response = await ai.models.generateContent({
-      model: MODEL_NAME,
+      model: 'gemini-3-flash-preview',
       contents: {
         parts: [
           {
@@ -34,21 +32,17 @@ export async function extractTextFromImage(base64Image: string): Promise<string>
       },
     });
 
-    if (!response.text) {
+    const text = response.text;
+    if (!text) {
       throw new Error("The AI returned an empty response. The image might be too blurry or contain no readable text.");
     }
 
-    return response.text;
+    return text;
   } catch (error: any) {
     console.error("Gemini API Error Detail:", error);
     
-    // Provide a more descriptive error message based on common API failures
-    if (error.message?.includes('403')) {
-      throw new Error("Permission denied (403). Check if your API key is valid and has billing enabled.");
-    } else if (error.message?.includes('404')) {
-      throw new Error(`Model '${MODEL_NAME}' not found. Your API key may not have access to this preview model yet.`);
-    } else if (error.message?.includes('429')) {
-      throw new Error("Rate limit exceeded. Please wait a moment before scanning again.");
+    if (error.message?.includes('API key') || error.message?.includes('403')) {
+      throw new Error("Invalid API Key. Please check your Zeabur environment variables and ensure the key is correct and has access to Gemini 3 models.");
     }
     
     throw new Error(error.message || "An unexpected error occurred during text extraction.");
