@@ -19,6 +19,11 @@
             display: none;
         }
     </style>
+    <script>
+      // Shim process.env for browser environments to prevent crashes
+      // before the deployment platform injects the real values.
+      window.process = window.process || { env: {} };
+    </script>
 <script type="importmap">
 {
   "imports": {
@@ -32,5 +37,7 @@
 </head>
 <body>
     <div id="root"></div>
+    <!-- Entry point for the application -->
+    <script type="module" src="./index.tsx"></script>
 </body>
 </html>
