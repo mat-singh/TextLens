@@ -74,14 +74,26 @@ const App: React.FC = () => {
   const initialPinchDist = useRef<number | null>(null);
   const initialZoom = useRef<number>(1);
 
+  // Check for API key presence to show early warning
+  const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
+
+  useEffect(() => {
+    const key = process.env.API_KEY;
+    if (!key || key === "undefined" || key === "") {
+      setIsApiKeyMissing(true);
+      setError("Gemini API Key is not configured. Please set 'API_KEY' in your environment settings.");
+    } else {
+      setIsApiKeyMissing(false);
+    }
+  }, []);
+
   const startCamera = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
-      setError("Camera API not supported.");
+      setError("Camera API not supported in this browser.");
       return;
     }
 
     try {
-      setError(null);
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
@@ -105,8 +117,15 @@ const App: React.FC = () => {
 
       streamRef.current = newStream;
       setStream(newStream);
+      
+      // Only clear error if it wasn't an API key error
+      const key = process.env.API_KEY;
+      if (key && key !== "undefined" && key !== "") {
+        setError(null);
+      }
     } catch (err: any) {
-      setError("Could not access camera. Check permissions or close other apps using the camera.");
+      console.error("Camera Access Error:", err);
+      setError("Could not access camera. Please ensure permissions are granted.");
       setAppState(AppState.ERROR);
     }
   }, []);
@@ -185,7 +204,7 @@ const App: React.FC = () => {
       }
       return next;
     });
-  }, [activeHandle]);
+  }, [activeHandle, boxRect]);
 
   const handleGlobalTouchMove = (e: React.TouchEvent) => {
     if (activeHandle) {
@@ -204,6 +223,13 @@ const App: React.FC = () => {
   };
 
   const captureAndExtract = async () => {
+    const key = process.env.API_KEY;
+    if (!key || key === "undefined" || key === "") {
+      setError("Please set your Gemini API Key in the deployment settings first.");
+      setIsApiKeyMissing(true);
+      return;
+    }
+
     const video = containerRef.current?.querySelector('video');
     if (!video || !canvasRef.current || appState === AppState.PROCESSING) return;
 
@@ -251,15 +277,15 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="relative h-[100dvh] w-full bg-slate-950 flex flex-col overflow-hidden text-slate-50">
-      <header className="absolute top-0 left-0 w-full z-40 p-5 flex justify-between items-start bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+    <div className="relative h-[100dvh] w-full bg-[#020617] flex flex-col overflow-hidden text-slate-50 font-sans">
+      <header className="absolute top-0 left-0 w-full z-40 p-6 flex justify-between items-start bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
         <div className="flex items-center gap-3 pointer-events-auto">
-          <div className="bg-blue-600 p-2 rounded-xl shadow-lg"><i className="lucide-scan-text text-white w-5 h-5 block"></i></div>
-          <h1 className="text-xl font-black uppercase tracking-tighter">TextLens</h1>
+          <div className="bg-blue-600 p-2.5 rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.4)]"><i className="lucide-scan-text text-white w-5 h-5 block"></i></div>
+          <h1 className="text-xl font-black uppercase tracking-tighter italic">TextLens AI</h1>
         </div>
-        <button onClick={() => setIsMenuOpen(true)} className="w-12 h-12 flex items-center justify-center rounded-full bg-slate-900/90 border border-blue-500/30 backdrop-blur-md pointer-events-auto shadow-xl">
+        <button onClick={() => setIsMenuOpen(true)} className="w-12 h-12 flex items-center justify-center rounded-2xl bg-slate-900/90 border border-blue-500/30 backdrop-blur-md pointer-events-auto shadow-2xl active:scale-90 transition-transform">
           <i className="lucide-menu text-blue-400 w-6 h-6"></i>
-          {history.length > 0 && <span className="absolute -top-1 -right-1 h-5 min-w-[20px] bg-blue-600 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-slate-950">{history.length}</span>}
+          {history.length > 0 && <span className="absolute -top-1 -right-1 h-5 min-w-[20px] bg-blue-600 rounded-full text-[10px] font-bold flex items-center justify-center border-2 border-[#020617] px-1">{history.length}</span>}
         </button>
       </header>
 
@@ -273,26 +299,38 @@ const App: React.FC = () => {
       >
         <CameraView stream={stream} error={error} />
 
-        {error && (
-          <div className="absolute inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center overflow-y-auto">
-            <div className="bg-red-500/10 p-6 rounded-3xl border border-red-500/20 max-w-sm">
-              <i className="lucide-alert-triangle w-12 h-12 text-red-500 mb-4 mx-auto"></i>
-              <h2 className="text-xl font-bold mb-3 text-red-400">Application Error</h2>
-              <p className="text-slate-300 text-sm leading-relaxed mb-6">{error}</p>
+        {(error || isApiKeyMissing) && (
+          <div className="absolute inset-0 z-50 bg-[#020617]/95 backdrop-blur-xl flex flex-col items-center justify-center p-10 text-center overflow-y-auto">
+            <div className={`p-8 rounded-[2rem] border max-w-sm ${isApiKeyMissing ? 'bg-amber-500/10 border-amber-500/20 shadow-[0_0_50px_rgba(245,158,11,0.1)]' : 'bg-red-500/10 border-red-500/20 shadow-[0_0_50px_rgba(239,68,68,0.1)]'}`}>
+              <div className={`w-16 h-16 mb-6 mx-auto rounded-2xl flex items-center justify-center ${isApiKeyMissing ? 'bg-amber-500/20' : 'bg-red-500/20'}`}>
+                <i className={`lucide-${isApiKeyMissing ? 'key' : 'alert-triangle'} w-8 h-8 ${isApiKeyMissing ? 'text-amber-500' : 'text-red-500'}`}></i>
+              </div>
+              <h2 className={`text-2xl font-black mb-4 tracking-tight ${isApiKeyMissing ? 'text-amber-400' : 'text-red-400'}`}>
+                {isApiKeyMissing ? 'Setup Required' : 'Oops! Error'}
+              </h2>
+              <p className="text-slate-400 text-sm leading-relaxed mb-8">
+                {error}
+                {isApiKeyMissing && <span className="block mt-3 font-medium text-slate-300">Add 'API_KEY' to your environment variables and redeploy to enable OCR.</span>}
+              </p>
               <div className="flex flex-col gap-3">
-                <button onClick={() => { setError(null); startCamera(); }} className="w-full py-3 bg-white text-slate-950 rounded-xl font-bold active:scale-95 transition-transform">Try Again</button>
-                <button onClick={() => window.location.reload()} className="w-full py-3 bg-slate-800 text-slate-400 rounded-xl font-medium text-sm">Refresh Page</button>
+                <button onClick={() => { startCamera(); if (!isApiKeyMissing) setError(null); }} className="w-full py-4 bg-white text-slate-950 rounded-2xl font-black active:scale-[0.98] transition-all shadow-xl">
+                  Try Again
+                </button>
+                <button onClick={() => window.location.reload()} className="w-full py-4 bg-slate-900 text-slate-500 rounded-2xl font-bold text-sm hover:text-slate-300 transition-colors">
+                  Refresh App
+                </button>
               </div>
             </div>
           </div>
         )}
 
-        {!showHistory && !error && (
+        {!showHistory && !error && !isApiKeyMissing && (
           <div className="absolute inset-0 z-30 pointer-events-none">
             <div 
-              className="absolute bg-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.6)] border border-white/30 transition-shadow duration-75"
+              className="absolute bg-transparent shadow-[0_0_0_9999px_rgba(0,0,0,0.65)] border-2 border-white/40 transition-shadow duration-75 rounded-lg"
               style={{ top: `${boxRect.top}%`, left: `${boxRect.left}%`, width: `${boxRect.width}%`, height: `${boxRect.height}%` }}
             >
+              <div className="absolute inset-0 bg-blue-500/5"></div>
               {['top-left', 'top-right', 'bottom-left', 'bottom-right'].map(h => (
                 <div 
                   key={h}
@@ -305,83 +343,132 @@ const App: React.FC = () => {
                   onTouchStart={(e) => handleBoxInteractionStart(e, h)}
                   onMouseDown={(e) => handleBoxInteractionStart(e, h)}
                 >
-                  <div className={`w-6 h-6 border-blue-500 ${h.includes('top') ? 'border-t-4' : 'border-b-4'} ${h.includes('left') ? 'border-l-4' : 'border-r-4'} rounded-sm`}></div>
+                  <div className={`w-6 h-6 border-blue-500 ${h.includes('top') ? 'border-t-[5px]' : 'border-b-[5px]'} ${h.includes('left') ? 'border-l-[5px]' : 'border-r-[5px]'} rounded-sm`}></div>
                 </div>
               ))}
               <div 
-                className="absolute inset-8 pointer-events-auto cursor-move bg-white/5 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg"
+                className="absolute inset-10 pointer-events-auto cursor-move bg-white/5 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-2xl"
                 onTouchStart={(e) => handleBoxInteractionStart(e, 'move')}
                 onMouseDown={(e) => handleBoxInteractionStart(e, 'move')}
               >
-                <i className="lucide-move text-white/20 w-8 h-8"></i>
+                <div className="bg-black/40 backdrop-blur-md p-3 rounded-full"><i className="lucide-move text-white/50 w-6 h-6"></i></div>
               </div>
             </div>
           </div>
         )}
 
         {latestResult && !showHistory && !error && (
-          <div className="absolute bottom-36 left-4 right-4 z-40 bg-slate-900/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl flex items-center gap-4 animate-in slide-in-from-bottom-5">
-            <img src={latestResult.previewUrl} className="w-14 h-14 rounded-lg object-cover border border-white/5" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Captured</p>
-              <p className="text-sm text-white line-clamp-1 opacity-80">{latestResult.text}</p>
+          <div className="absolute bottom-36 left-6 right-6 z-40 bg-[#0f172a]/95 backdrop-blur-2xl border border-white/10 rounded-3xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.5)] flex items-center gap-5 animate-in slide-in-from-bottom-8 duration-500">
+            <div className="relative group">
+               <img src={latestResult.previewUrl} className="w-16 h-16 rounded-xl object-cover border border-white/10 shadow-lg" />
+               <div className="absolute inset-0 bg-blue-500/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
             </div>
-            <button onClick={() => { navigator.clipboard.writeText(latestResult.text); setToastMessage("Copied!"); }} className="bg-blue-600 p-3 rounded-xl active:scale-90 transition-transform">
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-black text-blue-400 uppercase tracking-[0.15em] mb-1">Text Captured</p>
+              <p className="text-[13px] text-slate-200 line-clamp-2 leading-snug opacity-90">{latestResult.text}</p>
+            </div>
+            <button 
+              onClick={() => { navigator.clipboard.writeText(latestResult.text); setToastMessage("Copied to Clipboard!"); }} 
+              className="bg-blue-600 w-12 h-12 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.3)] active:scale-90 transition-transform"
+            >
               <i className="lucide-copy text-white w-5 h-5"></i>
             </button>
           </div>
         )}
 
         {appState === AppState.PROCESSING && (
-          <div className="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex flex-col items-center justify-center">
-            <div className="w-16 h-16 border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin mb-6"></div>
-            <h3 className="text-xl font-bold">Analyzing Frame</h3>
-            <p className="text-slate-400 text-sm animate-pulse">Reading text with Gemini AI...</p>
+          <div className="absolute inset-0 z-50 bg-[#020617]/85 backdrop-blur-xl flex flex-col items-center justify-center">
+            <div className="relative">
+              <div className="w-20 h-20 border-[6px] border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+              <div className="absolute inset-0 flex items-center justify-center">
+                <i className="lucide-brain-circuit text-blue-500 w-8 h-8 animate-pulse"></i>
+              </div>
+            </div>
+            <h3 className="text-2xl font-black mt-8 tracking-tight">Processing Image</h3>
+            <p className="text-slate-400 text-sm mt-2 opacity-80 italic">Gemini AI is analyzing the text...</p>
           </div>
         )}
       </main>
 
       <canvas ref={canvasRef} className="hidden" />
 
-      <footer className="h-32 bg-slate-950 border-t border-white/5 flex items-center justify-center relative z-20 pb-[env(safe-area-inset-bottom,0px)]">
+      <footer className="h-40 bg-[#020617] border-t border-white/5 flex items-center justify-center relative z-20 pb-[env(safe-area-inset-bottom,0px)] px-10">
+        <div className="absolute inset-0 bg-gradient-to-t from-blue-900/10 to-transparent opacity-50"></div>
         <button 
           onClick={captureAndExtract}
-          disabled={appState === AppState.PROCESSING || !!error}
-          className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${appState === AppState.PROCESSING ? 'bg-slate-800 scale-90' : 'bg-white hover:scale-110 active:scale-95 disabled:opacity-50 disabled:grayscale'}`}
+          disabled={appState === AppState.PROCESSING || !!error || isApiKeyMissing}
+          className={`relative w-24 h-24 rounded-full flex items-center justify-center transition-all duration-300 group ${appState === AppState.PROCESSING ? 'bg-slate-900 scale-90' : 'bg-white hover:scale-110 active:scale-95 disabled:opacity-30 disabled:grayscale'}`}
         >
-          <div className="w-16 h-16 rounded-full border-2 border-slate-950 flex items-center justify-center">
-            <i className={`lucide-scan w-8 h-8 ${appState === AppState.PROCESSING ? 'text-slate-600' : 'text-slate-950'}`}></i>
+          {/* Shimmer effect for button */}
+          {!isApiKeyMissing && appState !== AppState.PROCESSING && (
+            <div className="absolute -inset-2 bg-blue-500/20 rounded-full blur-xl group-hover:bg-blue-500/40 transition-all duration-500"></div>
+          )}
+          <div className="w-20 h-20 rounded-full border-[3px] border-[#020617] flex items-center justify-center relative z-10">
+            <i className={`lucide-scan-text w-10 h-10 ${appState === AppState.PROCESSING ? 'text-slate-600' : 'text-slate-950'}`}></i>
           </div>
         </button>
       </footer>
 
+      {/* Side Menu Drawer */}
       <div className={`fixed inset-0 z-[100] transition-all duration-300 ${isMenuOpen ? 'visible' : 'invisible'}`}>
-        <div className={`absolute inset-0 bg-black/80 transition-opacity ${isMenuOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setIsMenuOpen(false)}></div>
-        <div className={`absolute top-0 right-0 h-full w-72 bg-slate-900 border-l border-white/5 shadow-2xl transition-transform ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-          <div className="p-8 flex flex-col h-full">
-            <div className="flex justify-between items-center mb-8">
-              <span className="text-xl font-black italic">TEXTLENS</span>
-              <button onClick={() => setIsMenuOpen(false)}><i className="lucide-x w-6 h-6"></i></button>
+        <div className={`absolute inset-0 bg-black/90 transition-opacity ${isMenuOpen ? 'opacity-100' : 'opacity-0'}`} onClick={() => setIsMenuOpen(false)}></div>
+        <div className={`absolute top-0 right-0 h-full w-80 bg-slate-900 border-l border-white/10 shadow-[0_0_100px_rgba(0,0,0,1)] transition-transform duration-500 ${isMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+          <div className="p-10 flex flex-col h-full">
+            <div className="flex justify-between items-center mb-12">
+              <span className="text-2xl font-black italic tracking-tighter text-blue-500">SETTINGS</span>
+              <button onClick={() => setIsMenuOpen(false)} className="w-10 h-10 flex items-center justify-center bg-slate-800 rounded-xl"><i className="lucide-x w-5 h-5"></i></button>
             </div>
-            <button onClick={() => { setShowHistory(true); setIsMenuOpen(false); }} className="flex items-center gap-4 p-4 bg-slate-800 rounded-2xl">
-              <i className="lucide-history text-blue-400"></i>
-              <div className="text-left"><p className="font-bold">Scan History</p><p className="text-xs text-slate-500">{history.length} items</p></div>
+            
+            <button onClick={() => { setShowHistory(true); setIsMenuOpen(false); }} className="flex items-center gap-5 p-6 bg-slate-800/50 hover:bg-slate-800 rounded-3xl border border-white/5 transition-all active:scale-95 group">
+              <div className="w-12 h-12 rounded-2xl bg-blue-600/20 flex items-center justify-center group-hover:bg-blue-600 transition-colors">
+                <i className="lucide-history text-blue-400 group-hover:text-white transition-colors"></i>
+              </div>
+              <div className="text-left">
+                <p className="font-black tracking-tight">Scan History</p>
+                <p className="text-xs text-slate-500">{history.length} items captured</p>
+              </div>
             </button>
+            
+            <div className="mt-auto pt-10 border-t border-white/5">
+              <p className="text-[10px] text-slate-600 uppercase font-black tracking-widest mb-4">Device Status</p>
+              <div className="flex items-center gap-3 text-sm text-slate-400">
+                <div className={`w-2 h-2 rounded-full ${stream ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`}></div>
+                <span>Camera {stream ? 'Connected' : 'Disconnected'}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className={`fixed inset-0 z-[110] bg-slate-950 transition-transform duration-500 ${showHistory ? 'translate-y-0' : 'translate-y-full'}`}>
-        <div className="h-full flex flex-col p-6">
-          <header className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-black">HISTORY</h2>
-            <button onClick={() => setShowHistory(false)} className="bg-slate-900 p-2 rounded-full"><i className="lucide-chevron-down w-8 h-8"></i></button>
+      {/* History View Overlay */}
+      <div className={`fixed inset-0 z-[110] bg-[#020617] transition-transform duration-700 cubic-bezier(0.4, 0, 0.2, 1) ${showHistory ? 'translate-y-0' : 'translate-y-full'}`}>
+        <div className="h-full flex flex-col p-8 max-w-2xl mx-auto">
+          <header className="flex justify-between items-center mb-10 pt-4">
+            <div>
+              <h2 className="text-3xl font-black italic tracking-tighter">HISTORY</h2>
+              <p className="text-slate-500 text-xs mt-1 uppercase font-bold tracking-widest">Saved scan collection</p>
+            </div>
+            <button onClick={() => setShowHistory(false)} className="bg-slate-900 w-14 h-14 rounded-2xl flex items-center justify-center border border-white/5 active:scale-90 transition-transform">
+              <i className="lucide-chevron-down w-8 h-8 text-blue-400"></i>
+            </button>
           </header>
-          <div className="flex-1 overflow-y-auto space-y-4 pb-20">
+          
+          <div className="flex-1 overflow-y-auto space-y-6 pb-24 pr-2 scroll-smooth">
             {history.length === 0 ? (
-              <div className="h-full flex flex-col items-center justify-center opacity-20"><i className="lucide-file-text w-16 h-16 mb-4"></i><p>No scans yet</p></div>
+              <div className="h-full flex flex-col items-center justify-center opacity-10 text-center">
+                <i className="lucide-file-text w-24 h-24 mb-6"></i>
+                <p className="text-2xl font-black italic">ARCHIVE EMPTY</p>
+                <p className="text-sm mt-3 font-medium">Your scan records will appear here</p>
+              </div>
             ) : (
-              history.map(item => <HistoryItem key={item.id} result={item} onCopy={() => { navigator.clipboard.writeText(item.text); setToastMessage("Copied!"); }} onDelete={(id) => setHistory(prev => prev.filter(x => x.id !== id))} />)
+              history.map(item => (
+                <HistoryItem 
+                  key={item.id} 
+                  result={item} 
+                  onCopy={(txt) => { navigator.clipboard.writeText(txt); setToastMessage("Text Copied!"); }} 
+                  onDelete={(id) => setHistory(prev => prev.filter(x => x.id !== id))} 
+                />
+              ))
             )}
           </div>
         </div>

@@ -2,16 +2,20 @@
 import { GoogleGenAI } from "@google/genai";
 
 export async function extractTextFromImage(base64Image: string): Promise<string> {
-  // Always use the required initialization pattern.
-  // The shim in index.html ensures 'process.env' exists even if not yet populated.
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  // Directly access the key from the environment.
+  // Note: On Vercel, you must add 'API_KEY' to your Environment Variables.
+  const apiKey = process.env.API_KEY;
   
-  // Explicitly check for the key to provide a helpful error in the app UI
-  if (!process.env.API_KEY || process.env.API_KEY === "undefined" || process.env.API_KEY === "") {
-    throw new Error("Missing API_KEY. Please set the 'API_KEY' environment variable in your Vercel/Zeabur project settings and redeploy.");
+  // Validation check before initializing the SDK to prevent constructor-level errors
+  if (!apiKey || apiKey === "undefined" || apiKey === "") {
+    console.error("Gemini API Key missing in process.env.API_KEY");
+    throw new Error("Missing Gemini API Key. Please ensure the 'API_KEY' environment variable is correctly set in your project's deployment settings (Vercel/Zeabur/etc) and redeploy.");
   }
 
-  // Ensure we only have the base64 data part
+  // Use the required initialization pattern.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+  // Ensure we only have the base64 data part for the API request
   const base64Data = base64Image.includes(',') ? base64Image.split(',')[1] : base64Image;
 
   const prompt = "Extract all text from this image exactly as it appears. Preserve layout, lists, and formatting. Output ONLY the extracted text with no conversational filler.";
@@ -42,7 +46,7 @@ export async function extractTextFromImage(base64Image: string): Promise<string>
     console.error("Gemini API Error Detail:", error);
     
     if (error.message?.includes('API key') || error.message?.includes('403')) {
-      throw new Error("Authentication failed. Ensure your API_KEY is valid and has access to Gemini 3 models.");
+      throw new Error("Authentication failed. Check if your API_KEY is valid and has permission for Gemini 3 models.");
     }
     
     throw new Error(error.message || "An unexpected error occurred during text extraction.");
