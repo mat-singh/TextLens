@@ -3,12 +3,12 @@ import { GoogleGenAI } from "@google/genai";
 
 export async function extractTextFromImage(base64Image: string): Promise<string> {
   // Directly use the required initialization pattern.
-  // Note: process.env.API_KEY must be injected by your build tool (e.g. Zeabur/Vite)
+  // Note: process.env.API_KEY must be injected by your build tool (e.g. Zeabur/Vite/Vercel)
   const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
   // Basic validation to provide a clear error message before the SDK throws
   if (!process.env.API_KEY) {
-    throw new Error("API_KEY is undefined in the browser. Ensure you have added 'API_KEY' to your Zeabur Environment Variables and redeployed.");
+    throw new Error("API_KEY is undefined in the browser. Ensure you have added 'API_KEY' to your Environment Variables and redeployed.");
   }
 
   // Ensure we only have the base64 data part
@@ -42,7 +42,7 @@ export async function extractTextFromImage(base64Image: string): Promise<string>
     console.error("Gemini API Error Detail:", error);
     
     if (error.message?.includes('API key') || error.message?.includes('403')) {
-      throw new Error("Invalid API Key. Please check your Zeabur environment variables and ensure the key is correct and has access to Gemini 3 models.");
+      throw new Error("Invalid API Key. Please check your environment variables and ensure the key is correct and has access to Gemini 3 models.");
     }
     
     throw new Error(error.message || "An unexpected error occurred during text extraction.");
