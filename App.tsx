@@ -4,6 +4,7 @@ import { extractTextFromImage } from './services/geminiService';
 import { ExtractionResult, AppState } from './types';
 import { Toast } from './components/Toast';
 import { HistoryItem } from './components/HistoryItem';
+import { Analytics } from '@vercel/analytics/react';
 
 interface BoxRect {
   top: number;
@@ -475,6 +476,7 @@ const App: React.FC = () => {
       </div>
 
       {toastMessage && <Toast message={toastMessage} onClose={() => setToastMessage(null)} />}
+      <Analytics />
     </div>
   );
 };
