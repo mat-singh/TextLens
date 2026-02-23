@@ -78,6 +78,15 @@ const App: React.FC = () => {
   const [isApiKeyMissing, setIsApiKeyMissing] = useState(false);
 
   useEffect(() => {
+    if (latestResult) {
+      const timer = setTimeout(() => {
+        setLatestResult(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [latestResult]);
+
+  useEffect(() => {
     const key = process.env.API_KEY;
     if (!key || key === "undefined" || key === "") {
       setIsApiKeyMissing(true);
@@ -368,7 +377,11 @@ const App: React.FC = () => {
               <p className="text-[13px] text-slate-200 line-clamp-2 leading-snug opacity-90">{latestResult.text}</p>
             </div>
             <button 
-              onClick={() => { navigator.clipboard.writeText(latestResult.text); setToastMessage("Copied to Clipboard!"); }} 
+              onClick={() => { 
+                navigator.clipboard.writeText(latestResult.text); 
+                setToastMessage("Copied to Clipboard!"); 
+                setLatestResult(null);
+              }} 
               className="bg-blue-600 w-12 h-12 rounded-2xl flex items-center justify-center shadow-[0_0_20px_rgba(37,99,235,0.3)] active:scale-90 transition-transform"
             >
               <i className="lucide-copy text-white w-5 h-5"></i>
